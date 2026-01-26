@@ -57,13 +57,38 @@ export HF_USER=<your-hf-username>
 3. **Probe USB ports** (`lerobot-find-port`) to map `/dev/tty*` or `COM*` devices.
 
 ### Set Motor IDs
-```bash
-lerobot-setup-motors \
-  --robot.type=dual_scorpion_follower \
-  --robot.left_arm_port=/dev/tty.usbmodemLEFT \
-  --robot.right_arm_port=/dev/tty.usbmodemRIGHT
-```
-The tool steps through each servo, writes the expected ID, and stores the layout.
+The wizard flashes IDs in this order: RIGHT gripper → joint6 … joint0, then LEFT gripper → joint6 … joint0.
+
+- **Both arms (normal)**  
+  ```bash
+  lerobot-setup-motors \
+    --robot.type=dual_scorpion_follower \
+    --robot.left_arm_port=/dev/tty.usbmodemLEFT \
+    --robot.right_arm_port=/dev/tty.usbmodemRIGHT
+  ```
+
+- **Left arm only** (right side ignored; dummy port OK)  
+  ```bash
+  lerobot-setup-motors \
+    --robot.type=dual_scorpion_follower \
+    --robot.left_arm_port=/dev/tty.usbmodem5A680111991 \
+    --robot.right_arm_port=/dev/null \
+    --arm left
+  ```
+
+- **Right arm only**  
+  ```bash
+  lerobot-setup-motors \
+    --robot.type=dual_scorpion_follower \
+    --robot.right_arm_port=/dev/tty.usbmodemRIGHT \
+    --robot.left_arm_port=/dev/null \
+    --arm right
+  ```
+
+Notes:
+- `--arm` accepts `left`, `right`, or `both` (default).
+- Keep both port flags; the unused side can point to `/dev/null` (macOS/Linux) or `NUL` (Windows).
+- If `--arm` doesn’t show up in `--help`, ensure you’re using the project venv binary: `source .venv/bin/activate && rehash`.
 
 ### Calibrate Encoders
 ```bash

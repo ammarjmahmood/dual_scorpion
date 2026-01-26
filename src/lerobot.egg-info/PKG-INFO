@@ -191,6 +191,16 @@ lerobot-setup-motors \
 ```
 The tool steps through each servo, writes the expected ID, and stores the layout.
 
+Only setting one arm? Add `--arm=left` (or `right`) and you may pass a dummy port for the unused side:
+
+```bash
+lerobot-setup-motors \
+  --robot.type=dual_scorpion_follower \
+  --robot.left_arm_port=/dev/tty.usbxxxxxxxxxx \
+  --robot.right_arm_port=/dev/null \
+  --arm=left
+```
+
 ### Calibrate Encoders
 ```bash
 lerobot-calibrate \

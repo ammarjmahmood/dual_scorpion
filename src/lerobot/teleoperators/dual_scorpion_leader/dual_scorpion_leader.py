@@ -229,15 +229,28 @@ class DualScorpionLeader(Teleoperator):
         for motor in self.left_bus.motors:
             self.left_bus.write("Operating_Mode", motor, OperatingMode.POSITION.value)
 
-    def setup_motors(self) -> None:
-        for motor in reversed(self.right_bus.motors):
-            input(f"Connect the controller board to the '{motor}' motor only and press enter.")
-            self.right_bus.setup_motor(motor)
-            print(f"'{motor}' motor id set to {self.right_bus.motors[motor].id}")
-        for motor in reversed(self.left_bus.motors):
-            input(f"Connect the controller board to the '{motor}' motor only and press enter.")
-            self.left_bus.setup_motor(motor)
-            print(f"'{motor}' motor id set to {self.left_bus.motors[motor].id}")
+    def setup_motors(self, arm: str | None = None) -> None:
+        """
+        Reflash IDs/baud for motors. Optionally limit to one arm.
+
+        Args:
+            arm: 'right', 'left', or 'both' (default).
+        """
+        arm = arm or "both"
+        if arm not in ("right", "left", "both"):
+            raise ValueError("arm must be one of: 'right', 'left', 'both'")
+
+        if arm in ("right", "both"):
+            for motor in reversed(self.right_bus.motors):
+                input(f"Connect the controller board to the '{motor}' motor only (RIGHT arm) and press enter.")
+                self.right_bus.setup_motor(motor)
+                print(f"RIGHT '{motor}' motor id set to {self.right_bus.motors[motor].id}")
+
+        if arm in ("left", "both"):
+            for motor in reversed(self.left_bus.motors):
+                input(f"Connect the controller board to the '{motor}' motor only (LEFT arm) and press enter.")
+                self.left_bus.setup_motor(motor)
+                print(f"LEFT '{motor}' motor id set to {self.left_bus.motors[motor].id}")
 
     def get_action(self) -> dict[str, float]:
         """

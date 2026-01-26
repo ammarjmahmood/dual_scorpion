@@ -63,12 +63,16 @@ COMPATIBLE_DEVICES = [
 class SetupConfig:
     teleop: TeleoperatorConfig | None = None
     robot: RobotConfig | None = None
+    # Optional: for dual_scorpion* devices, choose which arm(s) to set up.
+    arm: str | None = None
 
     def __post_init__(self):
         if bool(self.teleop) == bool(self.robot):
             raise ValueError("Choose either a teleop or a robot.")
 
         self.device = self.robot if self.robot else self.teleop
+        if self.arm is not None and self.arm not in ("left", "right", "both"):
+            raise ValueError("`arm` must be one of: left, right, both.")
 
 
 @draccus.wrap()
@@ -81,7 +85,14 @@ def setup_motors(cfg: SetupConfig):
     else:
         device = make_teleoperator_from_config(cfg.device)
 
-    device.setup_motors()
+    # Dual-scorpion hardware supports arm-selective setup; others ignore `arm`.
+    if cfg.arm is not None:
+        try:
+            device.setup_motors(arm=cfg.arm)
+        except TypeError:
+            raise ValueError(f"`arm` option is not supported for device type '{cfg.device.type}'.")
+    else:
+        device.setup_motors()
 
 
 def main():

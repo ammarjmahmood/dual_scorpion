@@ -254,15 +254,28 @@ class DualScorpionFollower(Robot):
                 self.left_bus.write("I_Coefficient", motor, 0)
                 self.left_bus.write("D_Coefficient", motor, 32)
 
-    def setup_motors(self) -> None:
-        for motor in reversed(self.right_bus.motors):
-            input(f"Connect the controller board to the '{motor}' motor only and press enter.")
-            self.right_bus.setup_motor(motor)
-            print(f"'{motor}' motor id set to {self.right_bus.motors[motor].id}")
-        for motor in reversed(self.left_bus.motors):
-            input(f"Connect the controller board to the '{motor}' motor only and press enter.")
-            self.left_bus.setup_motor(motor)
-            print(f"'{motor}' motor id set to {self.left_bus.motors[motor].id}")
+    def setup_motors(self, arm: str | None = None) -> None:
+        """
+        Reflash IDs/baud for motors. Optionally limit to one arm to allow single-bus setups.
+
+        Args:
+            arm: 'right', 'left', or 'both' (default).
+        """
+        arm = arm or "both"
+        if arm not in ("right", "left", "both"):
+            raise ValueError("arm must be one of: 'right', 'left', 'both'")
+
+        if arm in ("right", "both"):
+            for motor in reversed(self.right_bus.motors):
+                input(f"Connect the controller board to the '{motor}' motor only (RIGHT arm) and press enter.")
+                self.right_bus.setup_motor(motor)
+                print(f"RIGHT '{motor}' motor id set to {self.right_bus.motors[motor].id}")
+
+        if arm in ("left", "both"):
+            for motor in reversed(self.left_bus.motors):
+                input(f"Connect the controller board to the '{motor}' motor only (LEFT arm) and press enter.")
+                self.left_bus.setup_motor(motor)
+                print(f"LEFT '{motor}' motor id set to {self.left_bus.motors[motor].id}")
 
     def get_observation(self) -> dict[str, Any]:
         if not self.is_connected:
