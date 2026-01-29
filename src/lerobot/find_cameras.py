@@ -46,9 +46,13 @@ from lerobot.cameras.realsense.configuration_realsense import RealSenseCameraCon
 logger = logging.getLogger(__name__)
 
 
-def find_all_opencv_cameras() -> list[dict[str, Any]]:
+def find_all_opencv_cameras(targets: list[int | str] | None = None) -> list[dict[str, Any]]:
     """
     Finds all available OpenCV cameras plugged into the system.
+
+    Args:
+        targets: Optional explicit list of indices or device paths to scan. If omitted,
+                 all indices up to MAX_OPENCV_INDEX (or /dev/video* on Linux) are scanned.
 
     Returns:
         A list of all available OpenCV cameras with their metadata.
@@ -56,7 +60,7 @@ def find_all_opencv_cameras() -> list[dict[str, Any]]:
     all_opencv_cameras_info: list[dict[str, Any]] = []
     logger.info("Searching for OpenCV cameras...")
     try:
-        opencv_cameras = OpenCVCamera.find_cameras()
+        opencv_cameras = OpenCVCamera.find_cameras(targets)
         for cam_info in opencv_cameras:
             all_opencv_cameras_info.append(cam_info)
         logger.info(f"Found {len(opencv_cameras)} OpenCV cameras.")
@@ -88,13 +92,16 @@ def find_all_realsense_cameras() -> list[dict[str, Any]]:
     return all_realsense_cameras_info
 
 
-def find_and_print_cameras(camera_type_filter: str | None = None) -> list[dict[str, Any]]:
+def find_and_print_cameras(
+    camera_type_filter: str | None = None, opencv_targets: list[int | str] | None = None
+) -> list[dict[str, Any]]:
     """
     Finds available cameras based on an optional filter and prints their information.
 
     Args:
         camera_type_filter: Optional string to filter cameras ("realsense" or "opencv").
                             If None, lists all cameras.
+        opencv_targets: Optional explicit list of OpenCV indices or device paths to scan.
 
     Returns:
         A list of all available cameras matching the filter, with their metadata.
@@ -105,7 +112,7 @@ def find_and_print_cameras(camera_type_filter: str | None = None) -> list[dict[s
         camera_type_filter = camera_type_filter.lower()
 
     if camera_type_filter is None or camera_type_filter == "opencv":
-        all_cameras_info.extend(find_all_opencv_cameras())
+        all_cameras_info.extend(find_all_opencv_cameras(opencv_targets))
     if camera_type_filter is None or camera_type_filter == "realsense":
         all_cameras_info.extend(find_all_realsense_cameras())
 
@@ -231,6 +238,7 @@ def save_images_from_all_cameras(
     output_dir: Path,
     record_time_s: float = 2.0,
     camera_type: str | None = None,
+    opencv_targets: list[int | str] | None = None,
 ):
     """
     Connects to detected cameras (optionally filtered by type) and saves images from each.
@@ -241,10 +249,15 @@ def save_images_from_all_cameras(
         record_time_s: Duration in seconds to record images.
         camera_type: Optional string to filter cameras ("realsense" or "opencv").
                             If None, uses all detected cameras.
+        opencv_targets: Optional explicit list of OpenCV indices or device paths to scan.
+                        Useful on macOS when the same physical camera is exposed with
+                        multiple indices.
     """
     output_dir.mkdir(parents=True, exist_ok=True)
     logger.info(f"Saving images to {output_dir}")
-    all_camera_metadata = find_and_print_cameras(camera_type_filter=camera_type)
+    all_camera_metadata = find_and_print_cameras(
+        camera_type_filter=camera_type, opencv_targets=opencv_targets
+    )
 
     if not all_camera_metadata:
         logger.warning("No cameras detected matching the criteria. Cannot save images.")
@@ -311,7 +324,25 @@ def main():
         default=6.0,
         help="Time duration to attempt capturing frames. Default: 6 seconds.",
     )
+    parser.add_argument(
+        "--opencv-targets",
+        type=str,
+        nargs="+",
+        help=(
+            "Explicit OpenCV camera indices or device paths to scan (e.g., 0 2 /dev/video4). "
+            "Useful when the same physical camera is exposed at multiple indices."
+        ),
+    )
     args = parser.parse_args()
+
+    if args.opencv_targets:
+        parsed_targets: list[int | str] = []
+        for value in args.opencv_targets:
+            try:
+                parsed_targets.append(int(value))
+            except ValueError:
+                parsed_targets.append(value)
+        args.opencv_targets = parsed_targets
     save_images_from_all_cameras(**vars(args))
 
 

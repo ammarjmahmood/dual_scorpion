@@ -206,6 +206,7 @@ src/lerobot/utils/benchmark.py
 src/lerobot/utils/buffer.py
 src/lerobot/utils/control_utils.py
 src/lerobot/utils/encoding_utils.py
+src/lerobot/utils/errors.py
 src/lerobot/utils/hub.py
 src/lerobot/utils/import_utils.py
 src/lerobot/utils/io_utils.py
