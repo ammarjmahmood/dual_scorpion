@@ -15,6 +15,7 @@ dual_scorpion (CLI type `dual_scorpion`) extends the original SO-101 arm into a 
 ## Contents
 - [Highlights](#highlights)
 - [Quickstart](#quickstart)
+- [Parts for Dual Scorpion Leader and Follower](#parts-for-dual-scorpion-leader-and-follower)
 - [Hardware Bring-Up](#hardware-bring-up)
 - [Configuration](#configuration)
 - [Runtime Workflows](#runtime-workflows)
@@ -50,6 +51,52 @@ pip install -e ".[feetech]"
 huggingface-cli login
 export HF_USER=<your-hf-username>
 ```
+
+## Parts for Dual Scorpion Leader and Follower
+
+This list is for building the Dual Scorpion setup, including both the Leader and Follower arms.
+
+For this version, all motors are standardized as **STS3215 Servo 7.4V, 19kg·cm, 1:345 gear ratio**.
+
+- Leader: `(7 + 1) × 2 = 16 motors`
+- Follower: `(7 + 1) × 2 = 16 motors`
+- Total: `(7 + 1) × 4 = 32 motors`
+
+The body frame is assembled using metal frames and connectors.  
+Cameras are not included in this parts list.
+
+> * It is also possible to use the 12V version of the servo, depending on your design, power supply, and torque requirements.
+
+| Part | Amount | Unit Cost (US) | Buy US | Unit Cost (JPY) | Buy JP |
+| --- | ---: | ---: | --- | ---: | --- |
+| STS3215 Servo 7.4V, 19kg·cm, 1:345 gear | 32 | $13.89 | [Alibaba](https://www.alibaba.com/product-detail/Top-Seller-Low-Cost-Feetech-STS3215_1600999461525.html) | ￥2,980 | [Akizuki Denshi](https://akizukidenshi.com/catalog/g/g116312/) |
+| Motor Control Board | 4 | $10.6 | [Amazon US](https://www.amazon.com/Waveshare-Integrates-Control-Circuit-Supports/dp/B0CTMM4LWK/) | ￥980 | [Akizuki Denshi](https://akizukidenshi.com/catalog/g/g131227/) |
+
+### Frame Parts
+
+In Japan, these frame parts were purchased at a local home center, but they are also available online.
+
+| Japan Part | US Equivalent | Reference |
+| --- | --- | --- |
+| SGF-0004 | GFF-000 | [SUS America GFF-000](https://www.susamericainc.com/products/detail.php?item_no=GFF-000) |
+| SGF-0265 | GFJ-200 | [SUS America GFJ-200](https://www.susamericainc.com/products/detail.php?item_no=GFJ-200) |
+
+### Approximate Dimensions
+
+For the current setup, the approximate dimensions are:
+
+- Body/frame rod height: about 60 cm
+- Setup width: about 30–45 cm
+- Recommended width: 45 cm
+
+These dimensions are still approximate and can be adjusted depending on the build.
+
+### Notes
+
+- This BOM focuses on the motors, motor control boards, and body frame parts.
+- Camera parts are intentionally omitted from this list.
+- The current Dual Scorpion setup uses only **STS3215 7.4V 19kg·cm 1:345** servos for consistency.
+- The 12V version can also be used, but the power supply and wiring should be selected accordingly.
 
 ## Hardware Bring-Up
 1. **Print & assemble** the follower and leader parts from `dual_scorpion_3d_printer_parts/`.
