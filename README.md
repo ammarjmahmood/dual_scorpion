@@ -76,10 +76,10 @@ Cameras are not included in this parts list.
 
 In Japan, these frame parts were purchased at a local home center, but they are also available online.
 
-| Japan Part | US Equivalent | Reference |
-| --- | --- | --- |
-| SGF-0004 | GFF-000 | [SUS America GFF-000](https://www.susamericainc.com/products/detail.php?item_no=GFF-000) |
-| SGF-0265 | GFJ-200 | [SUS America GFJ-200](https://www.susamericainc.com/products/detail.php?item_no=GFJ-200) |
+| Japan Part | Buy JP | US Equivalent | Reference |
+| --- | --- | --- | --- |
+| SGF-0004 | [G-Fun Japan](https://store.g-fun.jp/item/detail.php?ItemNo=SGF-0004) | GFF-000 | [SUS America GFF-000](https://www.susamericainc.com/products/detail.php?item_no=GFF-000) |
+| SGF-0265 | [G-Fun Japan](https://store.g-fun.jp/item/detail.php?ItemNo=SGF-0265) | GFJ-200 | [SUS America GFJ-200](https://www.susamericainc.com/products/detail.php?item_no=GFJ-200) |
 
 ### Approximate Dimensions
 
