@@ -1,4 +1,6 @@
 .venv
 memo
 READMEcopy.md
-.DS_Store
+**/.DS_Store
+.vscode
+outputs
