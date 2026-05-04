@@ -18,28 +18,27 @@ from pprint import pformat
 
 import torch
 
-from lerobot.configs.policies import PreTrainedConfig
+from lerobot.configs import PreTrainedConfig
+from lerobot.configs.rewards import RewardModelConfig
 from lerobot.configs.train import TrainPipelineConfig
-from lerobot.datasets.lerobot_dataset import (
-    LeRobotDataset,
-    LeRobotDatasetMetadata,
-    MultiLeRobotDataset,
-)
-from lerobot.datasets.transforms import ImageTransforms
+from lerobot.transforms import ImageTransforms
+from lerobot.utils.constants import ACTION, IMAGENET_STATS, OBS_PREFIX, REWARD
 
-IMAGENET_STATS = {
-    "mean": [[[0.485]], [[0.456]], [[0.406]]],  # (c,1,1)
-    "std": [[[0.229]], [[0.224]], [[0.225]]],  # (c,1,1)
-}
+from .dataset_metadata import LeRobotDatasetMetadata
+from .lerobot_dataset import LeRobotDataset
+from .multi_dataset import MultiLeRobotDataset
+from .streaming_dataset import StreamingLeRobotDataset
 
 
 def resolve_delta_timestamps(
-    cfg: PreTrainedConfig, ds_meta: LeRobotDatasetMetadata
+    cfg: PreTrainedConfig | RewardModelConfig, ds_meta: LeRobotDatasetMetadata
 ) -> dict[str, list] | None:
-    """Resolves delta_timestamps by reading from the 'delta_indices' properties of the PreTrainedConfig.
+    """Resolves delta_timestamps by reading from the 'delta_indices' properties of the config.
 
     Args:
-        cfg (PreTrainedConfig): The PreTrainedConfig to read delta_indices from.
+        cfg (PreTrainedConfig | RewardModelConfig): The config to read delta_indices from. Both
+            ``PreTrainedConfig`` and concrete ``RewardModelConfig`` subclasses expose the
+            ``{observation,action,reward}_delta_indices`` properties used below.
         ds_meta (LeRobotDatasetMetadata): The dataset from which features and fps are used to build
             delta_timestamps against.
 
@@ -53,11 +52,11 @@ def resolve_delta_timestamps(
     """
     delta_timestamps = {}
     for key in ds_meta.features:
-        if key == "next.reward" and cfg.reward_delta_indices is not None:
+        if key == REWARD and cfg.reward_delta_indices is not None:
             delta_timestamps[key] = [i / ds_meta.fps for i in cfg.reward_delta_indices]
-        if key == "action" and cfg.action_delta_indices is not None:
+        if key == ACTION and cfg.action_delta_indices is not None:
             delta_timestamps[key] = [i / ds_meta.fps for i in cfg.action_delta_indices]
-        if key.startswith("observation.") and cfg.observation_delta_indices is not None:
+        if key.startswith(OBS_PREFIX) and cfg.observation_delta_indices is not None:
             delta_timestamps[key] = [i / ds_meta.fps for i in cfg.observation_delta_indices]
 
     if len(delta_timestamps) == 0:
@@ -86,16 +85,31 @@ def make_dataset(cfg: TrainPipelineConfig) -> LeRobotDataset | MultiLeRobotDatas
         ds_meta = LeRobotDatasetMetadata(
             cfg.dataset.repo_id, root=cfg.dataset.root, revision=cfg.dataset.revision
         )
-        delta_timestamps = resolve_delta_timestamps(cfg.policy, ds_meta)
-        dataset = LeRobotDataset(
-            cfg.dataset.repo_id,
-            root=cfg.dataset.root,
-            episodes=cfg.dataset.episodes,
-            delta_timestamps=delta_timestamps,
-            image_transforms=image_transforms,
-            revision=cfg.dataset.revision,
-            video_backend=cfg.dataset.video_backend,
-        )
+        delta_timestamps = resolve_delta_timestamps(cfg.trainable_config, ds_meta)
+        if not cfg.dataset.streaming:
+            dataset = LeRobotDataset(
+                cfg.dataset.repo_id,
+                root=cfg.dataset.root,
+                episodes=cfg.dataset.episodes,
+                delta_timestamps=delta_timestamps,
+                image_transforms=image_transforms,
+                revision=cfg.dataset.revision,
+                video_backend=cfg.dataset.video_backend,
+                return_uint8=True,
+                tolerance_s=cfg.tolerance_s,
+            )
+        else:
+            dataset = StreamingLeRobotDataset(
+                cfg.dataset.repo_id,
+                root=cfg.dataset.root,
+                episodes=cfg.dataset.episodes,
+                delta_timestamps=delta_timestamps,
+                image_transforms=image_transforms,
+                revision=cfg.dataset.revision,
+                max_num_shards=cfg.num_workers,
+                tolerance_s=cfg.tolerance_s,
+                return_uint8=True,
+            )
     else:
         raise NotImplementedError("The MultiLeRobotDataset isn't supported for now.")
         dataset = MultiLeRobotDataset(

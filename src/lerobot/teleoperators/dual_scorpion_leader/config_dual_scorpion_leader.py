@@ -19,14 +19,14 @@ from dataclasses import dataclass
 
 from ..config import TeleoperatorConfig
 
+
 @TeleoperatorConfig.register_subclass("dual_scorpion_leader")
 @dataclass
 class DualScorpionLeaderConfig(TeleoperatorConfig):
-    """
-    Configuration for the Dual Scorpion Leader Arm Teleoperator
-    """
+    """Configuration for the Dual Scorpion leader arms."""
+
     # Port to connect to the arm
     right_arm_port: str  # Port for the right arm (e.g. "/dev/ttyACM1")
     left_arm_port: str  # Port for the left arm (e.g. "/dev/ttyACM3")
 
-    use_degrees: bool = False
+    use_degrees: bool = True

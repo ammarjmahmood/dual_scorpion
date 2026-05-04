@@ -18,114 +18,88 @@
 import logging
 import time
 
-from lerobot.errors import DeviceAlreadyConnectedError, DeviceNotConnectedError
 from lerobot.motors import Motor, MotorCalibration, MotorNormMode
 from lerobot.motors.feetech import (
     FeetechMotorsBus,
     OperatingMode,
 )
+from lerobot.utils.decorators import check_if_already_connected, check_if_not_connected
 
 from ..teleoperator import Teleoperator
 from .config_dual_scorpion_leader import DualScorpionLeaderConfig
 
 logger = logging.getLogger(__name__)
 
+
+def _arm_motors(norm_mode_body: MotorNormMode) -> dict[str, Motor]:
+    return {
+        "joint0": Motor(1, "sts3215", norm_mode_body),
+        "joint1": Motor(2, "sts3215", norm_mode_body),
+        "joint2": Motor(3, "sts3215", norm_mode_body),
+        "joint3": Motor(4, "sts3215", norm_mode_body),
+        "joint4": Motor(5, "sts3215", norm_mode_body),
+        "joint5": Motor(6, "sts3215", norm_mode_body),
+        "joint6": Motor(7, "sts3215", norm_mode_body),
+        "gripper": Motor(8, "sts3215", MotorNormMode.RANGE_0_100),
+    }
+
+
+def _calibration_for_arm(
+    calibration: dict[str, MotorCalibration],
+    arm: str,
+) -> dict[str, MotorCalibration]:
+    prefix = f"{arm}_"
+    return {
+        motor.removeprefix(prefix): calib for motor, calib in calibration.items() if motor.startswith(prefix)
+    }
+
+
 class DualScorpionLeader(Teleoperator):
-    """
-    Dual Scorpion Leader Arm
-    """
-    config_class = DualScorpionLeaderConfig    
+    """Dual Scorpion bimanual leader arm."""
+
+    config_class = DualScorpionLeaderConfig
     name = "dual_scorpion_leader"
 
     def __init__(self, config: DualScorpionLeaderConfig):
-        """
-        Initialize the Dual Scorpion Leader Arm
-        Dual Scorpion 双腕リーダーアームを初期化
-        """
         super().__init__(config)
         self.config = config
         norm_mode_body = MotorNormMode.DEGREES if config.use_degrees else MotorNormMode.RANGE_M100_100
 
-        # Separate calibration data for right and left arms / キャリブレーションデータを右腕と左腕用に分離
-        right_calibration = {
-            motor.replace("right_", ""): calib 
-            for motor, calib in self.calibration.items() 
-            if motor.startswith("right_")
-        }
-        left_calibration = {
-            motor.replace("left_", ""): calib 
-            for motor, calib in self.calibration.items() 
-            if motor.startswith("left_")
-        }
-
-        # Initialize right follower motors / 右腕のモーターバスの初期化
         self.right_bus = FeetechMotorsBus(
             port=self.config.right_arm_port,
-            motors={
-                "joint0": Motor(1, "sts3215", norm_mode_body),
-                "joint1": Motor(2, "sts3215", norm_mode_body),
-                "joint2": Motor(3, "sts3215", norm_mode_body),
-                "joint3": Motor(4, "sts3215", norm_mode_body),
-                "joint4": Motor(5, "sts3215", norm_mode_body),
-                "joint5": Motor(6, "sts3215", norm_mode_body),
-                "joint6": Motor(7, "sts3215", norm_mode_body),
-                "gripper": Motor(8, "sts3215", MotorNormMode.RANGE_0_100),
-            },
-            calibration=right_calibration,
+            motors=_arm_motors(norm_mode_body),
+            calibration=_calibration_for_arm(self.calibration, "right"),
         )
-        # Initialize left follower motors / 左腕のモーターバスの初期化
         self.left_bus = FeetechMotorsBus(
             port=self.config.left_arm_port,
-            motors={
-                "joint0": Motor(1, "sts3215", norm_mode_body),
-                "joint1": Motor(2, "sts3215", norm_mode_body),
-                "joint2": Motor(3, "sts3215", norm_mode_body),
-                "joint3": Motor(4, "sts3215", norm_mode_body),
-                "joint4": Motor(5, "sts3215", norm_mode_body),
-                "joint5": Motor(6, "sts3215", norm_mode_body),
-                "joint6": Motor(7, "sts3215", norm_mode_body),
-                "gripper": Motor(8, "sts3215", MotorNormMode.RANGE_0_100),
-            },
-            calibration=left_calibration,
+            motors=_arm_motors(norm_mode_body),
+            calibration=_calibration_for_arm(self.calibration, "left"),
         )
 
     @property
     def action_features(self) -> dict[str, type]:
-        """
-        Returns the action features for the Dual Scorpion Leader Arm.
-        アクション特徴を返す
-        """
         features = {}
-        # Right arm motors / 右腕のモーター
         features.update({f"right_{motor}.pos": float for motor in self.right_bus.motors})
-        #  Left arm motors / 左腕のモーター
         features.update({f"left_{motor}.pos": float for motor in self.left_bus.motors})
         return features
-    
+
     @property
     def feedback_features(self) -> dict[str, type]:
         return {}
-    
+
     @property
     def is_connected(self) -> bool:
-        """
-        Check if the devices is connected.
-        デバイスが接続されているかを確認する
-        """
         return self.right_bus.is_connected and self.left_bus.is_connected
-    
+
+    @check_if_already_connected
     def connect(self, calibrate: bool = True) -> None:
-        """
-        Connect the devices.
-        デバイスを接続する
-        """
-        if self.is_connected:  # 既に接続されている場合はエラーを投げる
-            raise DeviceAlreadyConnectedError(f"{self} already connected")
+        self.right_bus.connect()
+        self.left_bus.connect()
 
-        self.right_bus.connect()  # 右腕のモーターバスを接続
-        self.left_bus.connect()  # 左腕のモーターバスを接続
-
-        if not self.is_calibrated and calibrate:  # キャリブレーションが必要な場合は実行
+        if not self.is_calibrated and calibrate:
+            logger.info(
+                "Mismatch between calibration values in the motor and the calibration file or no calibration file found"
+            )
             self.calibrate()
 
         self.configure()
@@ -133,20 +107,26 @@ class DualScorpionLeader(Teleoperator):
 
     @property
     def is_calibrated(self) -> bool:
-        """
-        Check if the devices is calibrated.
-        キャリブレーションが完了しているかを確認する
-        """
         return self.right_bus.is_calibrated and self.left_bus.is_calibrated
-    
+
     def calibrate(self) -> None:
         """
         Run calibration for the Dual Scorpion Leader Arm.
         キャリブレーションを実行する
         """
+        if self.calibration:
+            user_input = input(
+                f"Press ENTER to use provided calibration file associated with the id {self.id}, or type 'c' and press ENTER to run calibration: "
+            )
+            if user_input.strip().lower() != "c":
+                logger.info(f"Writing calibration file associated with the id {self.id} to the motors")
+                self.right_bus.write_calibration(_calibration_for_arm(self.calibration, "right"))
+                self.left_bus.write_calibration(_calibration_for_arm(self.calibration, "left"))
+                return
+
         logger.info(f"\nRunning calibration for {self}")
-        self.right_bus.disable_torque()  # 右腕のトルクを無効化
-        self.left_bus.disable_torque()  # 左腕のトルクを無効化
+        self.right_bus.disable_torque()
+        self.left_bus.disable_torque()
 
         for motor in self.right_bus.motors:
             self.right_bus.write("Operating_Mode", motor, OperatingMode.POSITION.value)
@@ -154,7 +134,7 @@ class DualScorpionLeader(Teleoperator):
             self.left_bus.write("Operating_Mode", motor, OperatingMode.POSITION.value)
 
         self.calibration = {}
-        # Right arm calibration / 右腕のキャリブレーション 
+
         input(f"Move RIGHT {self} to the middle of its range of motion and press ENTER....")
         right_homing_offsets = self.right_bus.set_half_turn_homings()
         print(
@@ -162,7 +142,7 @@ class DualScorpionLeader(Teleoperator):
             "of motion.\nRecording positions. Press ENTER to stop..."
         )
         right_range_mins, right_range_maxes = self.right_bus.record_ranges_of_motion()
-        for motor, m in self.right_bus.motors.items():  # motor = "shoulder_pan", "shoulder_lift", ... | m = Motor instance
+        for motor, m in self.right_bus.motors.items():
             self.calibration[f"right_{motor}"] = MotorCalibration(
                 id=m.id,
                 drive_mode=0,
@@ -171,8 +151,7 @@ class DualScorpionLeader(Teleoperator):
                 range_max=right_range_maxes[motor],
             )
 
-        # Left arm calibration / 左腕のキャリブレーション
-        input(f"Move LEFT {self} to the middle of its range of motion and press ENTER....")  
+        input(f"Move LEFT {self} to the middle of its range of motion and press ENTER....")
         homing_offsets_left = self.left_bus.set_half_turn_homings()
         print(
             "Move all joints sequentially through their entire ranges "
@@ -190,39 +169,18 @@ class DualScorpionLeader(Teleoperator):
 
         print("Saving calibration...")
 
-        # error:
-        # self.right_bus.write_calibration(self.calibration)  # 右腕のキャリブレーションを保存
-        # self.left_bus.write_calibration(self.calibration)  # 左腕のキャリブレーションを保存
+        self.right_bus.write_calibration(_calibration_for_arm(self.calibration, "right"))
+        self.left_bus.write_calibration(_calibration_for_arm(self.calibration, "left"))
 
-        # キャリブレーションを保存する前に、右腕と左腕のキャリブレーションデータを分ける必要がある
-        # Extract calibration data for the right arm / 右腕用のキャリブレーションデータを抽出
-        right_calibration = {
-            motor.replace("right_", ""): calib
-            for motor, calib in self.calibration.items()
-            if motor.startswith("right_")
-        }
-        # Extract calibration data for the left arm / 左腕用のキャリブレーションデータを抽出
-        left_calibration = {
-            motor.replace("left_", ""): calib
-            for motor, calib in self.calibration.items()
-            if motor.startswith("left_")
-        }
-        self.right_bus.write_calibration(right_calibration)
-        self.left_bus.write_calibration(left_calibration)
-
-        self._save_calibration()  # キャリブレーションを保存
+        self._save_calibration()
         print(f"Calibration saved to {self.calibration_fpath}")
 
-    def configure(self)  -> None:
-        """
-        Configure the motors for the Dual Scorpion Leader Arm.
-        Dual Scorpion 双腕リーダーアームのモーターを設定する
-        """
-        self.right_bus.disable_torque()  # 右腕のトルクの無効化
-        self.left_bus.disable_torque()  # 左腕のトルクの無効化
+    def configure(self) -> None:
+        self.right_bus.disable_torque()
+        self.left_bus.disable_torque()
 
-        self.right_bus.configure_motors()  # 右腕のモーターを設定
-        self.left_bus.configure_motors()  # 左腕のモーターを設定
+        self.right_bus.configure_motors()
+        self.left_bus.configure_motors()
 
         for motor in self.right_bus.motors:
             self.right_bus.write("Operating_Mode", motor, OperatingMode.POSITION.value)
@@ -242,7 +200,9 @@ class DualScorpionLeader(Teleoperator):
 
         if arm in ("right", "both"):
             for motor in reversed(self.right_bus.motors):
-                input(f"Connect the controller board to the '{motor}' motor only (RIGHT arm) and press enter.")
+                input(
+                    f"Connect the controller board to the '{motor}' motor only (RIGHT arm) and press enter."
+                )
                 self.right_bus.setup_motor(motor)
                 print(f"RIGHT '{motor}' motor id set to {self.right_bus.motors[motor].id}")
 
@@ -252,29 +212,24 @@ class DualScorpionLeader(Teleoperator):
                 self.left_bus.setup_motor(motor)
                 print(f"LEFT '{motor}' motor id set to {self.left_bus.motors[motor].id}")
 
+    @check_if_not_connected
     def get_action(self) -> dict[str, float]:
-        """
-        Read the current action from the Dual Scorpion Leader Arm.
-        アクションを取得する
-        """
         start = time.perf_counter()
         action_right = self.right_bus.sync_read("Present_Position")
         action_left = self.left_bus.sync_read("Present_Position")
-        
+
         action = {f"right_{motor}.pos": val for motor, val in action_right.items()}
         action.update({f"left_{motor}.pos": val for motor, val in action_left.items()})
-        
+
         dt_ms = (time.perf_counter() - start) * 1e3
         logger.debug(f"{self} read action: {dt_ms:.1f}ms")
         return action
-    
+
     def send_feedback(self, feedback: dict[str, float]) -> None:
         raise NotImplementedError
-    
+
+    @check_if_not_connected
     def disconnect(self) -> None:
-        if not self.is_connected:
-            DeviceNotConnectedError(f"{self} is not connected.")
-    
         self.right_bus.disconnect()
         self.left_bus.disconnect()
 

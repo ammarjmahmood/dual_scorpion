@@ -18,15 +18,16 @@
 import logging
 import time
 from functools import cached_property
-from typing import Any
 
-from lerobot.cameras.utils import make_cameras_from_configs
-from lerobot.errors import DeviceAlreadyConnectedError, DeviceNotConnectedError
+from lerobot.cameras import make_cameras_from_configs
 from lerobot.motors import Motor, MotorCalibration, MotorNormMode
 from lerobot.motors.feetech import (
     FeetechMotorsBus,
     OperatingMode,
 )
+from lerobot.types import RobotAction, RobotObservation
+from lerobot.utils.constants import HF_LEROBOT_CALIBRATION, ROBOTS
+from lerobot.utils.decorators import check_if_already_connected, check_if_not_connected
 
 from ..robot import Robot
 from ..utils import ensure_safe_goal_position
@@ -34,67 +35,58 @@ from .config_dual_scorpion_follower import DualScorpionFollowerConfig
 
 logger = logging.getLogger(__name__)
 
+
+def _arm_motors(norm_mode_body: MotorNormMode) -> dict[str, Motor]:
+    return {
+        "joint0": Motor(1, "sts3215", norm_mode_body),
+        "joint1": Motor(2, "sts3215", norm_mode_body),
+        "joint2": Motor(3, "sts3215", norm_mode_body),
+        "joint3": Motor(4, "sts3215", norm_mode_body),
+        "joint4": Motor(5, "sts3215", norm_mode_body),
+        "joint5": Motor(6, "sts3215", norm_mode_body),
+        "joint6": Motor(7, "sts3215", norm_mode_body),
+        "gripper": Motor(8, "sts3215", MotorNormMode.RANGE_0_100),
+    }
+
+
+def _calibration_for_arm(
+    calibration: dict[str, MotorCalibration],
+    arm: str,
+) -> dict[str, MotorCalibration]:
+    prefix = f"{arm}_"
+    return {
+        motor.removeprefix(prefix): calib for motor, calib in calibration.items() if motor.startswith(prefix)
+    }
+
+
 class DualScorpionFollower(Robot):
-    """
-    SO-101 Dual Follower Arm
-    """
+    """Dual Scorpion bimanual follower arm."""
+
     config_class = DualScorpionFollowerConfig
-    name = "so101_dual_follower"
+    name = "dual_scorpion_follower"
 
     def __init__(self, config: DualScorpionFollowerConfig):
-        """
-        Initialize the SO-101 Dual Follower Arm with the provided configuration.
-        SO-101 双腕フォロワーアームを初期化
-        """
         super().__init__(config)
         self.config = config
+        if not self.calibration and config.calibration_dir is None:
+            legacy_calibration_fpath = (
+                HF_LEROBOT_CALIBRATION / ROBOTS / "so101_dual_follower" / f"{self.id}.json"
+            )
+            if legacy_calibration_fpath.is_file():
+                self._load_calibration(legacy_calibration_fpath)
+
         norm_mode_body = MotorNormMode.DEGREES if config.use_degrees else MotorNormMode.RANGE_M100_100
 
-        # Separate calibration data for right and left arms / キャリブレーションデータを右腕と左腕用に分離
-        # "right_"で始まるモーターのキャリブレーションデータのみ抽出
-        right_calibration = {
-            motor.replace("right_", ""): calib 
-            for motor, calib in self.calibration.items() 
-            if motor.startswith("right_")
-        }
-        # "left_"で始まるモーターのキャリブレーションデータのみ抽出
-        left_calibration = {  
-            motor.replace("left_", ""): calib 
-            for motor, calib in self.calibration.items() 
-            if motor.startswith("left_")
-        }
-
-        # Initialize right follower motors / 右腕のモーターバスの初期化
         self.right_bus = FeetechMotorsBus(
             port=self.config.right_arm_port,
-            motors={
-                "joint0": Motor(1, "sts3215", norm_mode_body),
-                "joint1": Motor(2, "sts3215", norm_mode_body),
-                "joint2": Motor(3, "sts3215", norm_mode_body),
-                "joint3": Motor(4, "sts3215", norm_mode_body),
-                "joint4": Motor(5, "sts3215", norm_mode_body),
-                "joint5": Motor(6, "sts3215", norm_mode_body),
-                "joint6": Motor(7, "sts3215", norm_mode_body),
-                "gripper": Motor(8, "sts3215", MotorNormMode.RANGE_0_100),
-            },
-            calibration=right_calibration,
+            motors=_arm_motors(norm_mode_body),
+            calibration=_calibration_for_arm(self.calibration, "right"),
         )
-        # Initialize left follower motors / 左腕のモーターバスの初期化
         self.left_bus = FeetechMotorsBus(
             port=self.config.left_arm_port,
-            motors={
-                "joint0": Motor(1, "sts3215", norm_mode_body),
-                "joint1": Motor(2, "sts3215", norm_mode_body),
-                "joint2": Motor(3, "sts3215", norm_mode_body),
-                "joint3": Motor(4, "sts3215", norm_mode_body),
-                "joint4": Motor(5, "sts3215", norm_mode_body),
-                "joint5": Motor(6, "sts3215", norm_mode_body),
-                "joint6": Motor(7, "sts3215", norm_mode_body),
-                "gripper": Motor(8, "sts3215", MotorNormMode.RANGE_0_100),
-            },
-            calibration=left_calibration,
+            motors=_arm_motors(norm_mode_body),
+            calibration=_calibration_for_arm(self.calibration, "left"),
         )
-        # Initialize cameras / カメラの初期化
         self.cameras = make_cameras_from_configs(config.cameras)
 
     @property
@@ -103,31 +95,30 @@ class DualScorpionFollower(Robot):
         ft.update({f"right_{motor}.pos": float for motor in self.right_bus.motors})
         ft.update({f"left_{motor}.pos": float for motor in self.left_bus.motors})
         return ft
-    
+
     @property
     def _cameras_ft(self) -> dict[str, tuple]:
         return {
             cam: (self.config.cameras[cam].height, self.config.cameras[cam].width, 3) for cam in self.cameras
         }
-    
+
     @cached_property
     def observation_features(self) -> dict[str, type | tuple]:
         return {**self._motors_ft, **self._cameras_ft}
-    
+
     @cached_property
     def action_features(self) -> dict[str, type]:
         return self._motors_ft
-    
+
     @property
     def is_connected(self) -> bool:
-        """
-        Check if the devices is connected.
-        デバイスが接続されているかを確認する
-        """
-        return self.right_bus.is_connected and \
-            self.left_bus.is_connected and \
-            all(cam.is_connected for cam in self.cameras.values())
-    
+        return (
+            self.right_bus.is_connected
+            and self.left_bus.is_connected
+            and all(cam.is_connected for cam in self.cameras.values())
+        )
+
+    @check_if_already_connected
     def connect(self, calibrate: bool = True) -> None:
         """
         We assume that at connection time, arm is in a rest position,
@@ -135,16 +126,16 @@ class DualScorpionFollower(Robot):
         接続時にはアームが休止位置にあると想定しており、
         トルクを安全に無効にしてキャリブレーションを実行できます。
         """
-        if self.is_connected:  # すでに接続されている場合はエラーを投げる
-            raise DeviceAlreadyConnectedError(f"{self} already connected")
+        self.right_bus.connect()
+        self.left_bus.connect()
 
-        self.right_bus.connect()  # 右腕のモーターバスを接続
-        self.left_bus.connect()  # 左腕のモーターバスを接続
-
-        if not self.is_calibrated and calibrate:  # キャリブレーションが必要な場合は実行
+        if not self.is_calibrated and calibrate:
+            logger.info(
+                "Mismatch between calibration values in the motor and the calibration file or no calibration file found"
+            )
             self.calibrate()
 
-        for cam in self.cameras.values():  # カメラを接続
+        for cam in self.cameras.values():
             cam.connect()
 
         self.configure()
@@ -152,20 +143,26 @@ class DualScorpionFollower(Robot):
 
     @property
     def is_calibrated(self) -> bool:
-        """
-        Check if the arms is calibrated.
-        アームがキャリブレーションされているかどうかを確認する
-        """
         return self.right_bus.is_calibrated and self.left_bus.is_calibrated
-    
+
     def calibrate(self) -> None:
         """
         Run the calibration for both arms.
         キャリブレーションを実行する
         """
+        if self.calibration:
+            user_input = input(
+                f"Press ENTER to use provided calibration file associated with the id {self.id}, or type 'c' and press ENTER to run calibration: "
+            )
+            if user_input.strip().lower() != "c":
+                logger.info(f"Writing calibration file associated with the id {self.id} to the motors")
+                self.right_bus.write_calibration(_calibration_for_arm(self.calibration, "right"))
+                self.left_bus.write_calibration(_calibration_for_arm(self.calibration, "left"))
+                return
+
         logger.info(f"\nRunning calibration of {self}")
-        self.right_bus.disable_torque()  # 右腕のトルクを無効にする
-        self.left_bus.disable_torque()  # 左腕のトルクを無効にする
+        self.right_bus.disable_torque()
+        self.left_bus.disable_torque()
 
         for motor in self.right_bus.motors:
             self.right_bus.write("Operating_Mode", motor, OperatingMode.POSITION.value)
@@ -208,27 +205,10 @@ class DualScorpionFollower(Robot):
                 range_max=left_range_maxes[motor],
             )
 
-        # error:
-        # self.right_bus.write_calibration(self.calibration)
-        # self.left_bus.write_calibration(self.calibration)
+        self.right_bus.write_calibration(_calibration_for_arm(self.calibration, "right"))
+        self.left_bus.write_calibration(_calibration_for_arm(self.calibration, "left"))
 
-        # キャリブレーションを保存する前に、右腕と左腕のキャリブレーションデータを分ける必要がある
-        # Extract calibration data for the right arm / 右腕用のキャリブレーションデータを抽出
-        right_calibration = {
-            motor.replace("right_", ""): calib
-            for motor, calib in self.calibration.items()
-            if motor.startswith("right_")
-        }
-        # Extract calibration data for the left arm / 左腕用のキャリブレーションデータを抽出
-        left_calibration = {
-            motor.replace("left_", ""): calib
-            for motor, calib in self.calibration.items()
-            if motor.startswith("left_")
-        }
-        self.right_bus.write_calibration(right_calibration)
-        self.left_bus.write_calibration(left_calibration)
-
-        self._save_calibration()  # キャリブレーションを保存
+        self._save_calibration()
         print("Calibration saved to", self.calibration_fpath)
 
     def configure(self) -> None:
@@ -246,6 +226,10 @@ class DualScorpionFollower(Robot):
                 # Set I_Coefficient and D_Coefficient to default value 0 and 32
                 self.right_bus.write("I_Coefficient", motor, 0)
                 self.right_bus.write("D_Coefficient", motor, 32)
+                if motor == "gripper":
+                    self.right_bus.write("Max_Torque_Limit", motor, 500)
+                    self.right_bus.write("Protection_Current", motor, 250)
+                    self.right_bus.write("Overload_Torque", motor, 25)
             for motor in self.left_bus.motors:
                 self.left_bus.write("Operating_Mode", motor, OperatingMode.POSITION.value)
                 # Set P_Coefficient to lower value to avoid shakiness (Default is 32)
@@ -253,6 +237,10 @@ class DualScorpionFollower(Robot):
                 # Set I_Coefficient and D_Coefficient to default value 0 and 32
                 self.left_bus.write("I_Coefficient", motor, 0)
                 self.left_bus.write("D_Coefficient", motor, 32)
+                if motor == "gripper":
+                    self.left_bus.write("Max_Torque_Limit", motor, 500)
+                    self.left_bus.write("Protection_Current", motor, 250)
+                    self.left_bus.write("Overload_Torque", motor, 25)
 
     def setup_motors(self, arm: str | None = None) -> None:
         """
@@ -267,7 +255,9 @@ class DualScorpionFollower(Robot):
 
         if arm in ("right", "both"):
             for motor in reversed(self.right_bus.motors):
-                input(f"Connect the controller board to the '{motor}' motor only (RIGHT arm) and press enter.")
+                input(
+                    f"Connect the controller board to the '{motor}' motor only (RIGHT arm) and press enter."
+                )
                 self.right_bus.setup_motor(motor)
                 print(f"RIGHT '{motor}' motor id set to {self.right_bus.motors[motor].id}")
 
@@ -277,10 +267,8 @@ class DualScorpionFollower(Robot):
                 self.left_bus.setup_motor(motor)
                 print(f"LEFT '{motor}' motor id set to {self.left_bus.motors[motor].id}")
 
-    def get_observation(self) -> dict[str, Any]:
-        if not self.is_connected:
-            raise DeviceNotConnectedError(f"{self} is not connected")
-        
+    @check_if_not_connected
+    def get_observation(self) -> RobotObservation:
         # Read arm position
         start = time.perf_counter()
         right_obs_dict = self.right_bus.sync_read("Present_Position")
@@ -299,13 +287,14 @@ class DualScorpionFollower(Robot):
         # capture camera images
         for cam_key, cam in self.cameras.items():
             start = time.perf_counter()
-            obs_dict[cam_key] = cam.async_read()
+            obs_dict[cam_key] = cam.read_latest()
             dt_ms = (time.perf_counter() - start) * 1e3
             logger.debug(f"{self} read {cam_key}: {dt_ms:.1f}ms")
 
         return obs_dict
-    
-    def send_action(self, action: dict[str, Any]) -> dict[str, Any]:
+
+    @check_if_not_connected
+    def send_action(self, action: RobotAction) -> RobotAction:
         """Command arm to move to a target joint configuration.
 
         The relative action magnitude may be clipped depending on the configuration parameter
@@ -318,10 +307,13 @@ class DualScorpionFollower(Robot):
         Returns:
             the action sent to the motors, potentially clipped.
         """
-        if not self.is_connected:
-            raise DeviceNotConnectedError(f"{self} is not connected.")
-        
         goal_pos = {key.removesuffix(".pos"): val for key, val in action.items() if key.endswith(".pos")}
+        right_goal_pos = {
+            key.removeprefix("right_"): val for key, val in goal_pos.items() if key.startswith("right_")
+        }
+        left_goal_pos = {
+            key.removeprefix("left_"): val for key, val in goal_pos.items() if key.startswith("left_")
+        }
 
         # Cap goal position when too far away from present position.
         # /!\ Slower fps expected due to reading from the follower.
@@ -332,44 +324,36 @@ class DualScorpionFollower(Robot):
             left_present_pos = self.left_bus.sync_read("Present_Position")
 
             goal_present_pos = {
-                f"right_{key}": (g_pos, right_present_pos[key]) 
-                for key, g_pos in goal_pos.items() 
+                f"right_{motor}": (goal, right_present_pos[motor]) for motor, goal in right_goal_pos.items()
+            }
+            goal_present_pos.update(
+                {f"left_{motor}": (goal, left_present_pos[motor]) for motor, goal in left_goal_pos.items()}
+            )
+
+            safe_goal_pos = ensure_safe_goal_position(goal_present_pos, self.config.max_relative_target)
+            right_goal_pos = {
+                key.removeprefix("right_"): val
+                for key, val in safe_goal_pos.items()
                 if key.startswith("right_")
             }
-            goal_present_pos.update({
-                f"left_{key}": (g_pos, left_present_pos[key]) 
-                for key, g_pos in goal_pos.items() 
+            left_goal_pos = {
+                key.removeprefix("left_"): val
+                for key, val in safe_goal_pos.items()
                 if key.startswith("left_")
-            })
-
-            goal_pos = ensure_safe_goal_position(goal_present_pos, self.config.max_relative_target)
-
-        # Send goal position to the arms
-        # 右腕用の目標位置を抽出
-        right_goal_pos = {
-            key.replace("right_", ""): val 
-            for key, val in goal_pos.items() 
-            if key.startswith("right_")
-        }
-        # 左腕用の目標位置を抽出
-        left_goal_pos = {
-            key.replace("left_", ""): val 
-            for key, val in goal_pos.items() 
-            if key.startswith("left_")
-        }
+            }
 
         self.right_bus.sync_write("Goal_Position", right_goal_pos)
         self.left_bus.sync_write("Goal_Position", left_goal_pos)
-        return {f"{motor}.pos": val for motor, val in goal_pos.items()}
-    
-    def disconnect(self):
-        if not self.is_connected:
-            raise DeviceNotConnectedError(f"{self} is not connected.")
+        return {
+            **{f"right_{motor}.pos": val for motor, val in right_goal_pos.items()},
+            **{f"left_{motor}.pos": val for motor, val in left_goal_pos.items()},
+        }
 
+    @check_if_not_connected
+    def disconnect(self):
         self.right_bus.disconnect(self.config.disable_torque_on_disconnect)
         self.left_bus.disconnect(self.config.disable_torque_on_disconnect)
         for cam in self.cameras.values():
             cam.disconnect()
 
         logger.info(f"{self} disconnected.")
-    
