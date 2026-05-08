@@ -21,12 +21,12 @@ from lerobot.cameras import CameraConfig
 
 from ..config import RobotConfig
 
+
 @RobotConfig.register_subclass("dual_scorpion_follower")
 @dataclass
 class DualScorpionFollowerConfig(RobotConfig):
-    """
-    Configuration for the SO-101 Dual Follower Arm
-    """
+    """Configuration for the Dual Scorpion follower arms."""
+
     # Port to connect to the arm
     right_arm_port: str  # Port for the right arm (e.g. "/dev/ttyACM0")
     left_arm_port: str  # Port for the left arm (e.g. "/dev/ttyACM1")
@@ -34,12 +34,12 @@ class DualScorpionFollowerConfig(RobotConfig):
     disable_torque_on_disconnect: bool = True
 
     # `max_relative_target` limits the magnitude of the relative positional target vector for safety purposes.
-    # Set this to a positive scalar to have the same value for all motors, or a list that is the same length as
-    # the number of motors in your follower arms.
-    max_relative_target: int | None = None
+    # Set this to a positive scalar to have the same value for all motors, or a dictionary that maps
+    # prefixed motor names (for example, "right_joint0") to the max relative target for that motor.
+    max_relative_target: float | dict[str, float] | None = None
 
     # cameras
     cameras: dict[str, CameraConfig] = field(default_factory=dict)
 
     # Set to `True` for backward compatibility with previous policies/dataset
-    use_degrees: bool = False
+    use_degrees: bool = True

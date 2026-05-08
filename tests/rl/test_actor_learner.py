@@ -20,12 +20,16 @@ import time
 
 import pytest
 import torch
+
+pytest.importorskip("datasets", reason="datasets is required (install lerobot[dataset])")
+
 from torch.multiprocessing import Event, Queue
 
 from lerobot.configs.train import TrainRLServerPipelineConfig
 from lerobot.policies.sac.configuration_sac import SACConfig
+from lerobot.utils.constants import OBS_STR
 from lerobot.utils.transition import Transition
-from tests.utils import require_package
+from tests.utils import skip_if_package_missing
 
 
 def create_test_transitions(count: int = 3) -> list[Transition]:
@@ -33,12 +37,12 @@ def create_test_transitions(count: int = 3) -> list[Transition]:
     transitions = []
     for i in range(count):
         transition = Transition(
-            state={"observation": torch.randn(3, 64, 64), "state": torch.randn(10)},
+            state={OBS_STR: torch.randn(3, 64, 64), "state": torch.randn(10)},
             action=torch.randn(5),
             reward=torch.tensor(1.0 + i),
             done=torch.tensor(i == count - 1),  # Last transition is done
             truncated=torch.tensor(False),
-            next_state={"observation": torch.randn(3, 64, 64), "state": torch.randn(10)},
+            next_state={OBS_STR: torch.randn(3, 64, 64), "state": torch.randn(10)},
             complementary_info={"step": torch.tensor(i), "episode_id": i // 2},
         )
         transitions.append(transition)
@@ -87,16 +91,16 @@ def cfg():
     return cfg
 
 
-@require_package("grpc")
+@skip_if_package_missing("grpcio", "grpc")
 @pytest.mark.timeout(10)  # force cross-platform watchdog
 def test_end_to_end_transitions_flow(cfg):
-    from lerobot.scripts.rl.actor import (
+    from lerobot.rl.actor import (
         establish_learner_connection,
         learner_service_client,
         push_transitions_to_transport_queue,
         send_transitions,
     )
-    from lerobot.scripts.rl.learner import start_learner
+    from lerobot.rl.learner import start_learner
     from lerobot.transport.utils import bytes_to_transitions
     from tests.transport.test_transport_utils import assert_transitions_equal
 
@@ -149,15 +153,15 @@ def test_end_to_end_transitions_flow(cfg):
         assert_transitions_equal(transition, input_transitions[i])
 
 
-@require_package("grpc")
+@skip_if_package_missing("grpcio", "grpc")
 @pytest.mark.timeout(10)
 def test_end_to_end_interactions_flow(cfg):
-    from lerobot.scripts.rl.actor import (
+    from lerobot.rl.actor import (
         establish_learner_connection,
         learner_service_client,
         send_interactions,
     )
-    from lerobot.scripts.rl.learner import start_learner
+    from lerobot.rl.learner import start_learner
     from lerobot.transport.utils import bytes_to_python_object, python_object_to_bytes
 
     """Test complete interactions flow from actor to learner."""
@@ -222,12 +226,12 @@ def test_end_to_end_interactions_flow(cfg):
         assert received == expected
 
 
-@require_package("grpc")
+@skip_if_package_missing("grpcio", "grpc")
 @pytest.mark.parametrize("data_size", ["small", "large"])
 @pytest.mark.timeout(10)
 def test_end_to_end_parameters_flow(cfg, data_size):
-    from lerobot.scripts.rl.actor import establish_learner_connection, learner_service_client, receive_policy
-    from lerobot.scripts.rl.learner import start_learner
+    from lerobot.rl.actor import establish_learner_connection, learner_service_client, receive_policy
+    from lerobot.rl.learner import start_learner
     from lerobot.transport.utils import bytes_to_state_dict, state_to_bytes
 
     """Test complete parameter flow from learner to actor, with small and large data."""

@@ -4,7 +4,7 @@ is optimized for dual arm operation.
 We added 2 DoF to the arm
 created clavicle rod, spine and base.
 
-dual_scorpion (CLI type `dual_scorpion`) extends the original SO-101 arm into a 7-DOF + gripper bimanual platform. The repository bundles printable parts, servo bring-up utilities, Hugging Face dataset hooks, and scripts for teleoperation, logging, and replay.
+dual_scorpion (CLI types `dual_scorpion_follower` and `dual_scorpion_leader`) extends the original SO-101 arm into a 7-DOF + gripper bimanual platform. The repository bundles printable parts, servo bring-up utilities, Hugging Face dataset hooks, and scripts for teleoperation, logging, and replay.
 
 **References**
 - Original SO-101 repository (Hugging Face LeRobot): https://github.com/huggingface/lerobot
@@ -32,7 +32,7 @@ dual_scorpion (CLI type `dual_scorpion`) extends the original SO-101 arm into a 
 ## Quickstart
 
 ### Requirements
-- Linux or macOS host with Python 3.10+.
+- Linux or macOS host with Python 3.12+.
 - `pip`, `venv`, and a recent `git`.
 - Feetech/BX servo buses (through the `[feetech]` extra).
 
@@ -43,12 +43,12 @@ cd dual_scorpion
 python -m venv .venv
 source .venv/bin/activate
 pip install --upgrade pip
-pip install -e ".[feetech]"
+pip install -e ".[core_scripts,feetech]"
 ```
 
 ### Optional: authenticate with Hugging Face
 ```bash
-huggingface-cli login
+hf auth login
 export HF_USER=<your-hf-username>
 ```
 
@@ -174,7 +174,7 @@ config = DualScorpionFollowerConfig(
 Key fields:
 - `right_arm_port` / `left_arm_port` – serial device assigned to each servo daisy-chain.
 - `disable_torque_on_disconnect` – drop torque when the driver exits (protects hardware at rest).
-- `max_relative_target` – per-joint clamp that keeps relative commands within a safe offset (can be scalar or list).
+- `max_relative_target` – per-joint clamp that keeps relative commands within a safe offset (can be scalar or a dict keyed by names such as `right_joint0`).
 - `cameras` – optional `dict[str, CameraConfig]` used for streaming or logging.
 - `use_degrees` – choose between degrees and normalized joint units.
 
@@ -219,7 +219,6 @@ lerobot-replay \
   --dataset.repo_id=${HF_USER}/dual_scorpion_demo \
   --dataset.episode=0
 ```
-For repeated evaluation runs, use `scripts/replay_loop.sh` after exporting `HF_USER`.
 
 ## 3D Printed Parts
 `dual_scorpion_3d_printer_parts/` hosts the STL sets for both follower and leader builds (base plates, spine, clavicle rods, wrists, grippers, etc.).
