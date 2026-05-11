@@ -147,6 +147,32 @@ lerobot-calibrate \
 ```
 Follow the prompts to sweep every joint. Calibration artifacts are cached locally and reused by the runtime.
 
+To redo only one joint while keeping the rest of an existing calibration JSON, pass `--joints`.
+For Dual Scorpion, `joint5` is accepted as an alias for the internal `joint5` key (motor ID 6).
+
+```bash
+lerobot-calibrate \
+  --robot.type=dual_scorpion_follower \
+  --robot.left_arm_port=/dev/tty.usbmodemLEFT \
+  --robot.right_arm_port=/dev/tty.usbmodemRIGHT \
+  --robot.id=scorpion_follower_parallel_gripper \
+  --robot.use_degrees=true \
+  --joints=joint5
+
+lerobot-calibrate \
+  --teleop.type=dual_scorpion_leader \
+  --teleop.left_arm_port=/dev/tty.usbmodemLEFT \
+  --teleop.right_arm_port=/dev/tty.usbmodemRIGHT \
+  --teleop.id=scorpion_leader_parallel_gripper \
+  --teleop.use_degrees=true \
+  --joints=joint5
+```
+
+Use `--joints=right_joint5` or `--joints=left_joint5` if only one arm should be updated.
+Only the selected JSON entries are updated, but the selected arm's motors are unlocked during the
+procedure so the joint can be moved by hand. The live table still shows every joint on that arm; selected
+rows are marked with `*`.
+
 ## Configuration
 All follower parameters live in `src/lerobot/robots/dual_scorpion_follower/config_dual_scorpion_follower.py`. Every `lerobot-*` CLI accepts the same keys via `--robot.*` flags, or you can instantiate the config directly:
 

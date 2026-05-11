@@ -17,6 +17,7 @@
 
 import logging
 import time
+from collections.abc import Sequence
 
 from lerobot.motors import Motor, MotorCalibration, MotorNormMode
 from lerobot.motors.feetech import (
@@ -24,6 +25,11 @@ from lerobot.motors.feetech import (
     OperatingMode,
 )
 from lerobot.utils.decorators import check_if_already_connected, check_if_not_connected
+from lerobot.utils.partial_calibration import (
+    calibration_for_prefixed_bus,
+    recalibrate_prefixed_bus_joints,
+    resolve_prefixed_joint_selectors,
+)
 
 from ..teleoperator import Teleoperator
 from .config_dual_scorpion_leader import DualScorpionLeaderConfig
@@ -48,10 +54,7 @@ def _calibration_for_arm(
     calibration: dict[str, MotorCalibration],
     arm: str,
 ) -> dict[str, MotorCalibration]:
-    prefix = f"{arm}_"
-    return {
-        motor.removeprefix(prefix): calib for motor, calib in calibration.items() if motor.startswith(prefix)
-    }
+    return calibration_for_prefixed_bus(calibration, arm)
 
 
 class DualScorpionLeader(Teleoperator):
@@ -174,6 +177,40 @@ class DualScorpionLeader(Teleoperator):
 
         self._save_calibration()
         print(f"Calibration saved to {self.calibration_fpath}")
+
+    def calibrate_joints(self, joints: Sequence[str]) -> None:
+        """
+        Recalibrate only selected joints while preserving the rest of the calibration file.
+        選択したジョイントのみ再キャリブレーションする
+        """
+        if not self.calibration:
+            raise RuntimeError(
+                "Partial calibration requires an existing calibration file. "
+                "Run full calibration first, or pass the same --teleop.id used before."
+            )
+
+        logger.info(f"\nRunning partial calibration for {self} for joints: {', '.join(joints)}")
+        selected = resolve_prefixed_joint_selectors(joints, motor_names=self.right_bus.motors)
+
+        self.calibration = recalibrate_prefixed_bus_joints(
+            calibration=self.calibration,
+            prefix="right",
+            bus=self.right_bus,
+            motors=selected["right"],
+            device_label=str(self),
+            position_mode_value=OperatingMode.POSITION.value,
+        )
+        self.calibration = recalibrate_prefixed_bus_joints(
+            calibration=self.calibration,
+            prefix="left",
+            bus=self.left_bus,
+            motors=selected["left"],
+            device_label=str(self),
+            position_mode_value=OperatingMode.POSITION.value,
+        )
+
+        self._save_calibration()
+        print(f"Partial calibration saved to {self.calibration_fpath}")
 
     def configure(self) -> None:
         self.right_bus.disable_torque()

@@ -72,12 +72,15 @@ from lerobot.utils.utils import init_logging
 class CalibrateConfig:
     teleop: TeleoperatorConfig | None = None
     robot: RobotConfig | None = None
+    joints: str | None = None
 
     def __post_init__(self):
         if bool(self.teleop) == bool(self.robot):
             raise ValueError("Choose either a teleop or a robot.")
 
         self.device = self.robot if self.robot else self.teleop
+        if self.joints is not None and not self.joints.strip():
+            raise ValueError("--joints must be a comma-separated list of joints.")
 
 
 @draccus.wrap()
@@ -93,7 +96,13 @@ def calibrate(cfg: CalibrateConfig):
     device.connect(calibrate=False)
 
     try:
-        device.calibrate()
+        if cfg.joints is None:
+            device.calibrate()
+        else:
+            if not hasattr(device, "calibrate_joints"):
+                raise ValueError(f"{type(device).__name__} does not support partial joint calibration.")
+            joints = [joint.strip() for joint in cfg.joints.split(",") if joint.strip()]
+            device.calibrate_joints(joints)
     finally:
         device.disconnect()
 

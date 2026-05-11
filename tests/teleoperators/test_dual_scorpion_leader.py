@@ -4,6 +4,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from lerobot.motors import MotorCalibration
 from lerobot.teleoperators.dual_scorpion_leader import DualScorpionLeader, DualScorpionLeaderConfig
 
 
@@ -63,3 +64,45 @@ def test_action_features_are_prefixed(leader):
     expected.update({f"left_{motor}.pos" for motor in leader.left_bus.motors})
 
     assert set(leader.action_features) == expected
+
+
+def test_calibrate_joints_updates_only_selected_leader_arm(leader):
+    leader.calibration = _full_calibration(leader)
+    leader.left_bus.set_half_turn_homings.return_value = {"joint6": 706}
+
+    with (
+        patch("builtins.input", return_value=""),
+        patch.object(DualScorpionLeader, "_save_calibration", lambda self: None),
+        patch(
+            "lerobot.utils.partial_calibration.record_selected_ranges_with_full_display",
+            return_value=({"joint6": 1706}, {"joint6": 2706}),
+        ),
+    ):
+        leader.calibrate_joints(["left_joint7"])
+
+    assert leader.calibration["right_joint6"].homing_offset == 100
+    assert leader.calibration["left_joint6"] == MotorCalibration(
+        id=7, drive_mode=0, homing_offset=706, range_min=1706, range_max=2706
+    )
+
+    leader.right_bus.set_half_turn_homings.assert_not_called()
+    leader.right_bus.disable_torque.assert_not_called()
+    leader.left_bus.set_half_turn_homings.assert_called_once_with(["joint6"])
+    leader.left_bus.disable_torque.assert_called_once_with()
+    written_left = leader.left_bus.write_calibration.call_args.args[0]
+    assert set(written_left) == set(leader.left_bus.motors)
+    assert written_left["joint6"].homing_offset == 706
+
+
+def _full_calibration(leader: DualScorpionLeader) -> dict[str, MotorCalibration]:
+    calibration = {}
+    for prefix, bus in (("right", leader.right_bus), ("left", leader.left_bus)):
+        for motor, motor_config in bus.motors.items():
+            calibration[f"{prefix}_{motor}"] = MotorCalibration(
+                id=motor_config.id,
+                drive_mode=0,
+                homing_offset=100,
+                range_min=200,
+                range_max=300,
+            )
+    return calibration
