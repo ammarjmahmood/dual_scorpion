@@ -18,12 +18,7 @@ from __future__ import annotations
 # Utilities
 ########################################################################################
 import logging
-import select
-import sys
-import termios
-import threading
 import traceback
-import tty
 from contextlib import nullcontext
 from copy import copy
 from functools import cache
@@ -126,88 +121,6 @@ def predict_action(
     return action
 
 
-def _apply_keyboard_control_key(key_name: str, events: dict[str, bool]) -> None:
-    if key_name == "right":
-        print("Right arrow key pressed. Exiting loop...")
-        events["exit_early"] = True
-    elif key_name == "left":
-        print("Left arrow key pressed. Exiting loop and rerecord the last episode...")
-        events["rerecord_episode"] = True
-        events["exit_early"] = True
-    elif key_name == "esc":
-        print("Escape key pressed. Stopping data recording...")
-        events["stop_recording"] = True
-        events["exit_early"] = True
-
-
-class _TerminalKeyboardListener:
-    """Fallback listener for arrow keys typed into the active terminal."""
-
-    _ESC_SEQUENCE_TIMEOUT_S = 0.2
-
-    def __init__(self, events: dict[str, bool]):
-        self._events = events
-        self._stop_event = threading.Event()
-        self._thread: threading.Thread | None = None
-        self._old_settings = None
-
-    def start(self) -> bool:
-        if not sys.stdin.isatty():
-            return False
-
-        try:
-            self._old_settings = termios.tcgetattr(sys.stdin)
-            tty.setcbreak(sys.stdin.fileno())
-        except termios.error:
-            return False
-
-        self._thread = threading.Thread(target=self._listen, daemon=True)
-        self._thread.start()
-        return True
-
-    def stop(self) -> None:
-        self._stop_event.set()
-        if self._old_settings is not None:
-            termios.tcsetattr(sys.stdin, termios.TCSADRAIN, self._old_settings)
-            self._old_settings = None
-
-    def _listen(self) -> None:
-        while not self._stop_event.is_set():
-            readable, _, _ = select.select([sys.stdin], [], [], 0.1)
-            if not readable:
-                continue
-
-            char = sys.stdin.read(1)
-            if char != "\x1b":
-                continue
-
-            readable, _, _ = select.select([sys.stdin], [], [], self._ESC_SEQUENCE_TIMEOUT_S)
-            if not readable:
-                continue
-
-            if sys.stdin.read(1) != "[":
-                continue
-
-            readable, _, _ = select.select([sys.stdin], [], [], self._ESC_SEQUENCE_TIMEOUT_S)
-            if not readable:
-                continue
-
-            arrow = sys.stdin.read(1)
-            if arrow == "C":
-                _apply_keyboard_control_key("right", self._events)
-            elif arrow == "D":
-                _apply_keyboard_control_key("left", self._events)
-
-
-class _KeyboardListenerGroup:
-    def __init__(self, listeners: list[Any]):
-        self._listeners = listeners
-
-    def stop(self) -> None:
-        for listener in self._listeners:
-            listener.stop()
-
-
 def init_keyboard_listener():
     """
     Initializes a non-blocking keyboard listener for real-time user interaction.
@@ -218,7 +131,7 @@ def init_keyboard_listener():
 
     Returns:
         A tuple containing:
-        - A listener object, or `None` if keyboard listening is unavailable.
+        - The `pynput.keyboard.Listener` instance, or `None` if in a headless environment.
         - A dictionary of event flags (e.g., `exit_early`) that are set by key presses.
     """
     # Allow to exit early while recording an episode or resetting the environment,
@@ -229,15 +142,11 @@ def init_keyboard_listener():
     events["rerecord_episode"] = False
     events["stop_recording"] = False
 
-    terminal_listener = _TerminalKeyboardListener(events)
-    terminal_listener_started = terminal_listener.start()
-
     if is_headless():
         logging.warning(
-            "Headless environment detected. On-screen cameras display will not be available. "
-            "Keyboard episode controls are available only when stdin is an interactive terminal."
+            "Headless environment detected. On-screen cameras display and keyboard inputs will not be available."
         )
-        listener = _KeyboardListenerGroup([terminal_listener]) if terminal_listener_started else None
+        listener = None
         return listener, events
 
     # Only import pynput if not in a headless environment
@@ -246,22 +155,23 @@ def init_keyboard_listener():
     def on_press(key):
         try:
             if key == keyboard.Key.right:
-                _apply_keyboard_control_key("right", events)
+                print("Right arrow key pressed. Exiting loop...")
+                events["exit_early"] = True
             elif key == keyboard.Key.left:
-                _apply_keyboard_control_key("left", events)
+                print("Left arrow key pressed. Exiting loop and rerecord the last episode...")
+                events["rerecord_episode"] = True
+                events["exit_early"] = True
             elif key == keyboard.Key.esc:
-                _apply_keyboard_control_key("esc", events)
+                print("Escape key pressed. Stopping data recording...")
+                events["stop_recording"] = True
+                events["exit_early"] = True
         except Exception as e:
             print(f"Error handling key press: {e}")
 
-    pynput_listener = keyboard.Listener(on_press=on_press)
-    pynput_listener.start()
+    listener = keyboard.Listener(on_press=on_press)
+    listener.start()
 
-    listeners: list[Any] = [pynput_listener]
-    if terminal_listener_started:
-        listeners.append(terminal_listener)
-
-    return _KeyboardListenerGroup(listeners), events
+    return listener, events
 
 
 def sanity_check_dataset_name(repo_id, policy_cfg):

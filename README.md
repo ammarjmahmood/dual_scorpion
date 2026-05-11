@@ -148,7 +148,7 @@ lerobot-calibrate \
 Follow the prompts to sweep every joint. Calibration artifacts are cached locally and reused by the runtime.
 
 To redo only one joint while keeping the rest of an existing calibration JSON, pass `--joints`.
-For Dual Scorpion, `joint7` is accepted as an alias for the internal `joint6` key (motor ID 7).
+For Dual Scorpion, `joint5` is accepted as an alias for the internal `joint5` key (motor ID 6).
 
 ```bash
 lerobot-calibrate \
@@ -157,7 +157,7 @@ lerobot-calibrate \
   --robot.right_arm_port=/dev/tty.usbmodemRIGHT \
   --robot.id=scorpion_follower_parallel_gripper \
   --robot.use_degrees=true \
-  --joints=joint7
+  --joints=joint5
 
 lerobot-calibrate \
   --teleop.type=dual_scorpion_leader \
@@ -165,10 +165,10 @@ lerobot-calibrate \
   --teleop.right_arm_port=/dev/tty.usbmodemRIGHT \
   --teleop.id=scorpion_leader_parallel_gripper \
   --teleop.use_degrees=true \
-  --joints=joint7
+  --joints=joint5
 ```
 
-Use `--joints=right_joint7` or `--joints=left_joint7` if only one arm should be updated.
+Use `--joints=right_joint5` or `--joints=left_joint5` if only one arm should be updated.
 Only the selected JSON entries are updated, but the selected arm's motors are unlocked during the
 procedure so the joint can be moved by hand. The live table still shows every joint on that arm; selected
 rows are marked with `*`.
