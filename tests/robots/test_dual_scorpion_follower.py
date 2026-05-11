@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from lerobot.motors import MotorCalibration
 from lerobot.robots.dual_scorpion_follower import DualScorpionFollower, DualScorpionFollowerConfig
 
 
@@ -125,3 +126,52 @@ def test_send_action_clamps_against_unprefixed_present_positions():
         robot.left_bus.sync_write.assert_called_once_with(
             "Goal_Position", dict.fromkeys(robot.left_bus.motors, 5.0)
         )
+
+
+def test_calibrate_joints_updates_only_selected_follower_joint(follower):
+    follower.calibration = _full_calibration(follower)
+    follower.right_bus.set_half_turn_homings.return_value = {"joint6": 701}
+    follower.left_bus.set_half_turn_homings.return_value = {"joint6": 702}
+
+    with (
+        patch("builtins.input", return_value=""),
+        patch.object(DualScorpionFollower, "_save_calibration", lambda self: None),
+        patch(
+            "lerobot.utils.partial_calibration.record_selected_ranges_with_full_display",
+            side_effect=[
+                ({"joint6": 1701}, {"joint6": 2701}),
+                ({"joint6": 1702}, {"joint6": 2702}),
+            ],
+        ),
+    ):
+        follower.calibrate_joints(["joint7"])
+
+    assert follower.calibration["right_joint5"].homing_offset == 100
+    assert follower.calibration["right_joint6"] == MotorCalibration(
+        id=7, drive_mode=0, homing_offset=701, range_min=1701, range_max=2701
+    )
+    assert follower.calibration["left_joint6"] == MotorCalibration(
+        id=7, drive_mode=0, homing_offset=702, range_min=1702, range_max=2702
+    )
+
+    follower.right_bus.set_half_turn_homings.assert_called_once_with(["joint6"])
+    follower.left_bus.set_half_turn_homings.assert_called_once_with(["joint6"])
+    follower.right_bus.disable_torque.assert_called_once_with()
+    follower.left_bus.disable_torque.assert_called_once_with()
+    written_right = follower.right_bus.write_calibration.call_args.args[0]
+    assert set(written_right) == set(follower.right_bus.motors)
+    assert written_right["joint6"].homing_offset == 701
+
+
+def _full_calibration(follower: DualScorpionFollower) -> dict[str, MotorCalibration]:
+    calibration = {}
+    for prefix, bus in (("right", follower.right_bus), ("left", follower.left_bus)):
+        for motor, motor_config in bus.motors.items():
+            calibration[f"{prefix}_{motor}"] = MotorCalibration(
+                id=motor_config.id,
+                drive_mode=0,
+                homing_offset=100,
+                range_min=200,
+                range_max=300,
+            )
+    return calibration
