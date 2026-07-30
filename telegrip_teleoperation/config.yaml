@@ -85,25 +85,18 @@ robot:
   # without a full human-arm reach. The workspace clamp remains the final
   # safety boundary.
   vr_to_robot_scale: 1.10
-  # Per-arm controller-to-TCP rotation gain. The right wrist's joint6 has a
-  # temporary asymmetric mechanical safety limit, so a gentler gain prevents
-  # IK from redirecting its blocked wrist rotation through the entire arm.
+  # Per-arm controller-to-TCP rotation gain.
   vr_rotation_scale:
     left: 0.5
-    right: 0.3
-  # Right controller orientation is temporarily disabled. Its wrist-roll
-  # joint6 is constrained near -3 degrees, causing IK to redirect ordinary
-  # controller tilt through joint5 and bend the whole arm. Translation and
-  # gripper control remain enabled.
+    right: 0.5
+  # Full-pose controller orientation is enabled for both seven-joint arms.
   vr_orientation_enabled:
     left: true
-    right: false
-  # Hold selected body joints at fixed calibrated angles during IK.
-  # joint5 is the right wrist pitch/flex joint (not the gripper).
+    right: true
+  # No body joints are locked; all seven joints participate in IK.
   locked_joints:
     left: {}
-    right:
-      joint5: 0.0
+    right: {}
   # Translation remains position-only until controller rotation exceeds this
   # intentional-motion threshold, preventing IK wrist/shoulder twisting while
   # merely lifting a mostly straight controller.

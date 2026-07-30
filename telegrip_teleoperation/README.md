@@ -129,6 +129,9 @@ For a manual update:
 - Hold left **X + Y** for 3 seconds: move both arms to the rest pose.
 - Click either thumbstick: toggle the robot diagnostic shadow.
 
+Both controllers use full-pose IK with all seven body joints enabled. No body
+joint is locked in the default configuration.
+
 Use `control.operator_to_robot_yaw_deg` in `config.yaml` to align operator
 forward with the robot frame. Change it in 90-degree steps and restart.
 

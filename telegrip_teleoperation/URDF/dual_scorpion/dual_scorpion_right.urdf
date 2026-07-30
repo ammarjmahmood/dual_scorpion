@@ -106,10 +106,7 @@
     <axis xyz="0 0 1" />
     <parent link="right_link_6" />
     <child link="right_link_7" />
-    <!-- Temporary measured safety limit: unloaded sweeps repeatedly stopped
-         near -5 deg in this direction. Restore the mechanical limit only
-         after correcting the cable/assembly obstruction and retesting. -->
-    <limit effort="1" velocity="1" lower="-0.0523599" upper="2.96706" />
+    <limit effort="1" velocity="1" lower="-2.96706" upper="2.96706" />
   </joint>
   <link name="right_gripper_link">
     <inertial>

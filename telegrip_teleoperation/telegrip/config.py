@@ -45,15 +45,12 @@ DEFAULT_CONFIG = {
         # Slightly amplify controller translation so the compact robot
         # workspace can be covered without a full human-arm reach.
         "vr_to_robot_scale": 1.10,
-        # Per-arm rotation gain. The right wrist has a temporary asymmetric
-        # mechanical limit and therefore uses gentler controller rotation.
-        "vr_rotation_scale": {"left": 0.5, "right": 0.3},
-        # Disable right-arm controller orientation until its wrist-roll
-        # joint6 limit is understood. Translation and gripper remain active.
-        "vr_orientation_enabled": {"left": True, "right": False},
-        # Fixed body-joint angles used by IK. joint5 is separate from the
-        # gripper (joint5 motor ID 6; gripper motor ID 8).
-        "locked_joints": {"left": {}, "right": {"joint5": 0.0}},
+        # Per-arm controller-to-TCP rotation gain.
+        "vr_rotation_scale": {"left": 0.5, "right": 0.5},
+        # Both controllers drive full-pose IK across all seven body joints.
+        "vr_orientation_enabled": {"left": True, "right": True},
+        # No body joints are fixed by default.
+        "locked_joints": {"left": {}, "right": {}},
         # Keep ordinary hand translation position-only. Controller orientation
         # engages only after an intentional rotation beyond this deadband.
         "vr_orientation_deadband_deg": 8.0,
