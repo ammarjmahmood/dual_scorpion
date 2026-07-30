@@ -12,6 +12,13 @@ dual_scorpion (CLI types `dual_scorpion_follower` and `dual_scorpion_leader`) ex
 - Project overview video (YouTube): https://www.youtube.com/watch?v=a1u_bPGSeXs
 - Hugging Face® is a registered trademark of Hugging Face, Inc.
 
+## Meta Quest arm teleoperation
+
+The isolated Telegrip WebXR add-on and its local/remote Quest setup guide are
+in [`telegrip_teleoperation/`](telegrip_teleoperation/README.md). That folder
+contains arm teleoperation only and reuses this repository's existing Dual
+Scorpion follower driver.
+
 ## Contents
 - [Highlights](#highlights)
 - [Quickstart](#quickstart)
