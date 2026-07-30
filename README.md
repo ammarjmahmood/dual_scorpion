@@ -70,12 +70,7 @@ For this version, all motors are standardized as **STS3215 Servo 7.4V, 19kg·cm,
 - Total: `(7 + 1) × 4 = 32 motors`
 
 The body frame is assembled using metal frames and connectors.
-
-### Camera
-
-Cameras are purchased separately from this parts list. See the
-[NUWA-HP60C Depth Camera documentation](https://www.yahboom.net/study/hp60c)
-for hardware information, downloads, and ROS 1/ROS 2 setup guides.
+Cameras are not included in this parts list.
 
 > * It is also possible to use the 12V version of the servo, depending on your design, power supply, and torque requirements.
 
