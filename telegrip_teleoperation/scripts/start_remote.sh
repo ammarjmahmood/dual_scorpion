@@ -4,6 +4,9 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
+TELEGRIP_GIST_ID="${TELEGRIP_GIST_ID:-a84200f82fd9618213d05f27e1c255ff}"
+export TELEGRIP_GIST_ID
+
 command -v cloudflared >/dev/null || {
   echo "cloudflared is required: https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/"
   exit 2
@@ -69,6 +72,6 @@ LOCAL_URL="https://${LAN_IP}:8443"
 "$ROOT/scripts/publish_quest_link.sh" "$HTTPS_URL" "$LOCAL_URL"
 
 echo "Remote Quest URL: $HTTPS_URL"
-echo "Stable Quest bookmark: https://gist.github.com/ammarjmahmood/a84200f82fd9618213d05f27e1c255ff"
+echo "Stable Quest bookmark: https://gist.github.com/$TELEGRIP_GIST_ID"
 echo "Press Ctrl+C to stop Telegrip and both tunnels."
 wait "$TELEGRIP_PID" "$HTTPS_PID" "$WS_PID"

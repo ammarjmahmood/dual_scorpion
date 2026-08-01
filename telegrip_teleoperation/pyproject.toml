@@ -34,8 +34,8 @@ dev = [
 telegrip = "telegrip.main:main_cli"
 
 [project.urls]
-Homepage = "https://github.com/ammarjmahmood/dual_scorpion"
-Repository = "https://github.com/ammarjmahmood/dual_scorpion"
+Homepage = "https://github.com/momoiorg-repository/dual_scorpion"
+Repository = "https://github.com/momoiorg-repository/dual_scorpion"
 
 [tool.setuptools.packages.find]
 include = ["telegrip*"]

@@ -26,7 +26,7 @@ Telegrip reuses this repository's existing Dual Scorpion follower driver; it
 does not ship another robot implementation.
 
 ```bash
-git clone https://github.com/ammarjmahmood/dual_scorpion.git
+git clone https://github.com/momoiorg-repository/dual_scorpion.git
 cd dual_scorpion
 
 python3.12 -m venv .venv
